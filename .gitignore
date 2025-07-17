@@ -141,3 +141,5 @@ jspm_packages/
 
 # Uploaded files
 uploads/
+
+.gitignore
