@@ -2,6 +2,16 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
+function devLog(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') console.log(...args);
+}
+function devError(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') console.error(...args);
+}
+function devWarn(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') console.warn(...args);
+}
+
 export interface EmailOptions {
   to: string;
   subject: string;
@@ -24,7 +34,7 @@ const transporter = nodemailer.createTransport({
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
-      console.error('GMAIL_USER or GMAIL_PASS is not set in environment variables');
+      devError('GMAIL_USER or GMAIL_PASS is not set in environment variables');
       return false;
     }
 
@@ -36,23 +46,23 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       html: options.html,
     };
 
-    console.log(`Attempting to send email to: ${options.to}`);
-    console.log(`From: ${mailOptions.from}`);
-    console.log(`Subject: ${options.subject}`);
+    devLog(`Attempting to send email to: ${options.to}`);
+    devLog(`From: ${mailOptions.from}`);
+    devLog(`Subject: ${options.subject}`);
     try {
       const info = await transporter.sendMail(mailOptions);
-      console.log(`Email sent successfully to ${options.to}`);
-      console.log('Nodemailer Response:', info.response);
+      devLog(`Email sent successfully to ${options.to}`);
+      devLog('Nodemailer Response:', info.response);
       return true;
     } catch (sendError: any) {
-      console.error('Nodemailer sendMail Error:', sendError);
+      devError('Nodemailer sendMail Error:', sendError);
       if (sendError && sendError.response) {
-        console.error('SMTP Response:', sendError.response);
+        devError('SMTP Response:', sendError.response);
       }
       return false;
     }
   } catch (error: any) {
-    console.error('Nodemailer Error Details:', error);
+    devError('Nodemailer Error Details:', error);
     return false;
   }
 }
@@ -68,7 +78,7 @@ export function generateVerificationCode(): string {
  * Send a verification code email
  */
 export async function sendVerificationEmail(email: string, code: string): Promise<boolean> {
-  console.log(`Sending verification email to: ${email} with code: ${code}`);
+  devLog(`Sending verification email to: ${email} with code: ${code}`);
 
   const html = `
   <!DOCTYPE html>
@@ -135,9 +145,9 @@ Sweet Treats Team
   });
 
   if (result) {
-    console.log(`Verification email sent successfully to ${email}`);
+    devLog(`Verification email sent successfully to ${email}`);
   } else {
-    console.error(`Failed to send verification email to ${email}`);
+    devError(`Failed to send verification email to ${email}`);
   }
 
   return result;
@@ -147,9 +157,9 @@ Sweet Treats Team
  * Send a password reset email
  */
 export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
-  console.log(`Sending password reset email to: ${email}`);
+  devLog(`Sending password reset email to: ${email}`);
 
-  const resetLink = `http://localhost:5000/reset-password?token=${token}`; // Replace with env variable in production
+  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`; // Use env variable in production
 
   const html = `
   <!DOCTYPE html>
@@ -210,9 +220,9 @@ The Sweet Treats Team
   });
 
   if (result) {
-    console.log(`Password reset email sent successfully to ${email}`);
+    devLog(`Password reset email sent successfully to ${email}`);
   } else {
-    console.error(`Failed to send password reset email to ${email}`);
+    devError(`Failed to send password reset email to ${email}`);
   }
 
   return result;
@@ -222,7 +232,7 @@ The Sweet Treats Team
  * Send a password change confirmation email
  */
 export async function sendPasswordChangeConfirmationEmail(email: string): Promise<boolean> {
-  console.log(`Sending password change confirmation email to: ${email}`);
+  devLog(`Sending password change confirmation email to: ${email}`);
 
   const html = `
   <!DOCTYPE html>
@@ -266,9 +276,9 @@ The Sweet Treats Team
   });
 
   if (result) {
-    console.log(`Password change confirmation email sent successfully to ${email}`);
+    devLog(`Password change confirmation email sent successfully to ${email}`);
   } else {
-    console.error(`Failed to send password change confirmation email to ${email}`);
+    devError(`Failed to send password change confirmation email to ${email}`);
   }
 
   return result;
@@ -282,13 +292,13 @@ export async function sendUsernameEmail(email: string, username: string): Promis
       html: `<p>Hello,</p><p>Your username is: <strong>${username}</strong></p><p>If you did not request this, you can ignore this email.</p>`
     });
     if (!result) {
-      console.error(`sendUsernameEmail: Failed to send username email to ${email}`);
+      devError(`sendUsernameEmail: Failed to send username email to ${email}`);
     } else {
-      console.log(`sendUsernameEmail: Username email sent successfully to ${email}`);
+      devLog(`sendUsernameEmail: Username email sent successfully to ${email}`);
     }
     return result;
   } catch (error) {
-    console.error('Error sending username email:', error);
+    devError('Error sending username email:', error);
     return false;
   }
 }
@@ -309,7 +319,7 @@ export async function sendOrderNotificationToAdmin(order: any): Promise<boolean>
     });
     return true;
   } catch (error) {
-    console.error('Error sending order notification to admin:', error);
+    devError('Error sending order notification to admin:', error);
     return false;
   }
 }

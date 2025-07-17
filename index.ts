@@ -7,11 +7,46 @@ import { safeErrorMessage } from "./lib/safeErrorMessage";
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-console.log('Environment:', {
+function devLog(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+}
+function devError(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.error(...args);
+  }
+}
+function devWarn(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.warn(...args);
+  }
+}
+
+devLog('Environment:', {
   NODE_ENV: process.env.NODE_ENV,
   DATABASE_URL: process.env.DATABASE_URL ? '[set]' : '[missing]',
   GMAIL_USER: process.env.GMAIL_USER ? '[set]' : '[missing]'
 });
+
+const requiredEnv = [
+  'DATABASE_URL',
+  'GMAIL_USER',
+  'GMAIL_PASS',
+  'SESSION_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'FRONTEND_URL',
+  'ADMIN_CODE',
+];
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  devError('Missing required environment variables:', missingEnv.join(', '));
+  process.exit(1);
+}
 
 const app = express();
 app.use(express.json());
@@ -72,10 +107,16 @@ app.use((req, res, next) => {
       }
     });
 
+    // Warn if not running behind HTTPS in production
+    if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL && !process.env.FRONTEND_URL.startsWith('https://')) {
+      devWarn('WARNING: FRONTEND_URL does not use HTTPS. It is strongly recommended to use HTTPS in production.');
+    }
+
     // Serve on port 5000
     const port = 5000;
-    server.listen(port, '127.0.0.1', () => {
-      log(`serving on http://localhost:${port}`);
+    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+    server.listen(port, host, () => {
+      log(`serving on http://${host}:${port}`);
     });
   } catch (err) {
     log(`Startup error: ${err instanceof Error ? err.message : 'Unknown error'}`);

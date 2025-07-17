@@ -11,6 +11,25 @@ async function hashPassword(password: string): Promise<string> {
   return `${salt}:${hash.toString("hex")}`;
 }
 
+function devLog(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+}
+function devError(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.error(...args);
+  }
+}
+function devWarn(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.warn(...args);
+  }
+}
+
 async function seed() {
   try {
     // Seed categories
@@ -22,7 +41,7 @@ async function seed() {
       { name: "Macarons", slug: "macarons" },
     ];
 
-    console.log("Seeding categories...");
+    devLog("Seeding categories...");
     for (const category of categoriesData) {
       await db.insert(categories).values(category).onConflictDoNothing();
     }
@@ -64,22 +83,27 @@ async function seed() {
       },
     ];
 
-    console.log("Seeding products...");
+    devLog("Seeding products...");
     for (const product of productsData) {
       await db.insert(products).values(product).onConflictDoNothing();
     }
 
-    // Seed admin user
+    // Seed admin user from environment variables
+    const requiredAdminEnv = ['ADMIN_EMAIL', 'ADMIN_PASSWORD', 'ADMIN_USERNAME', 'ADMIN_FULLNAME'];
+    const missingAdminEnv = requiredAdminEnv.filter((key) => !process.env[key]);
+    if (missingAdminEnv.length > 0) {
+      devError('Missing required admin environment variables:', missingAdminEnv.join(', '));
+      process.exit(1);
+    }
     const adminUser = {
-      username: "admin",
-      password: await hashPassword("admin123"),
-      email: "admin@sweettreats.com",
-      fullName: "Admin User",
+      username: process.env.ADMIN_USERNAME,
+      password: await hashPassword(process.env.ADMIN_PASSWORD),
+      email: process.env.ADMIN_EMAIL,
+      fullName: process.env.ADMIN_FULLNAME,
       isAdmin: true,
       isVerified: true,
     };
-
-    console.log("Seeding admin user...");
+    devLog("Seeding admin user...");
     await db.insert(users).values(adminUser).onConflictDoNothing();
 
     // Seed sample orders
@@ -157,14 +181,14 @@ async function seed() {
       },
     ];
 
-    console.log("Seeding sample orders...");
+    devLog("Seeding sample orders...");
     for (const order of sampleOrders) {
       await db.insert(orders).values(order).onConflictDoNothing();
     }
 
-    console.log("Seeding completed successfully!");
+    devLog("Seeding completed successfully!");
   } catch (error) {
-    console.error("Error seeding database:", error);
+    devError("Error seeding database:", error);
     process.exit(1);
   }
 }

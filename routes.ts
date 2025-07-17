@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/uploads', (req, res, next) => {
     // Restrict CORS in production
     const allowedOrigin = process.env.NODE_ENV === 'production'
-      ? 'https://your-frontend-domain.com' // TODO: Replace with your real frontend domain
+      ? process.env.FRONTEND_URL
       : '*';
     res.header('Access-Control-Allow-Origin', allowedOrigin);
     res.header('Access-Control-Allow-Methods', 'GET');

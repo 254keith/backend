@@ -29,9 +29,28 @@ function sanitizeUser(user: any) {
   return safeUser;
 }
 
+function devLog(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+}
+function devError(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.error(...args);
+  }
+}
+function devWarn(...args: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.warn(...args);
+  }
+}
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "sweet-treats-secret",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -111,24 +130,27 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      console.log("Registration attempt for:", req.body.email);
+      devLog("Registration attempt for:", req.body.email);
       
       // Check if username or email already exists
       const existingUser = await storage.getUserByUsername(req.body.username);
       const existingEmail = await storage.getUserByEmail(req.body.email);
       if (existingUser || existingEmail) {
-        if (existingUser) console.warn(`Registration attempt with existing username: ${req.body.username}`);
-        if (existingEmail) console.warn(`Registration attempt with existing email: ${req.body.email}`);
+        if (existingUser) devWarn(`Registration attempt with existing username: ${req.body.username}`);
+        if (existingEmail) devWarn(`Registration attempt with existing email: ${req.body.email}`);
         return res.status(400).json({ message: "Registration failed. Please check your details and try again." });
       }
 
       // Validate admin registration
       if (req.body.isAdmin) {
         const adminCode = req.body.adminCode;
-        if (adminCode !== "7575MG") {
+        if (!process.env.ADMIN_CODE) {
+          return res.status(500).json({ message: "Admin code is not set in environment variables" });
+        }
+        if (adminCode !== process.env.ADMIN_CODE) {
           return res.status(400).json({ message: "Invalid admin code" });
         }
-        console.log(`Admin registration attempt for: ${req.body.email}`);
+        devLog(`Admin registration attempt for: ${req.body.email}`);
       }
 
       // Hash password
@@ -141,7 +163,7 @@ export function setupAuth(app: Express) {
       const verificationExpiry = new Date();
       verificationExpiry.setMinutes(verificationExpiry.getMinutes() + 30);
 
-      console.log(`Generated verification code: ${verificationCode} for ${req.body.email}`);
+      devLog(`Generated verification code: ${verificationCode} for ${req.body.email}`);
 
       // Create user with verification data
       const user = await storage.createUser({
@@ -152,14 +174,14 @@ export function setupAuth(app: Express) {
         verificationExpiry,
       });
 
-      console.log(`User created successfully with ID: ${user.id}`);
+      devLog(`User created successfully with ID: ${user.id}`);
 
       // Send verification email
-      console.log(`Attempting to send verification email to: ${user.email}`);
+      devLog(`Attempting to send verification email to: ${user.email}`);
       const emailSent = await sendVerificationEmail(user.email, verificationCode);
       
       if (!emailSent) {
-        console.error(`Failed to send verification email to ${user.email}`);
+        devError(`Failed to send verification email to ${user.email}`);
         // Still create the user but inform them about the email issue
         const userWithoutSensitiveData = sanitizeUser(user);
         
@@ -173,7 +195,7 @@ export function setupAuth(app: Express) {
         return;
       }
 
-      console.log(`Verification email sent successfully to ${user.email}`);
+      devLog(`Verification email sent successfully to ${user.email}`);
 
       // Remove password from response
       const userWithoutSensitiveData = sanitizeUser(user);
@@ -187,7 +209,7 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
-      console.error("Registration error:", error);
+      devError("Registration error:", error);
       res.status(500).json({ message: "Error creating account" });
     }
   });
@@ -256,21 +278,21 @@ export function setupAuth(app: Express) {
       // Prevent updating sensitive fields like email, isAdmin, password via this route
       const { email, isAdmin, password, ...updatableData } = userData;
 
-      console.log(`Attempting to update user ${userId} with data:`, updatableData);
+      devLog(`Attempting to update user ${userId} with data:`, updatableData);
 
       const updatedUser = await storage.updateUser(userId, updatableData);
 
       if (!updatedUser) {
-        console.error(`User with ID ${userId} not found during update.`);
+        devError(`User with ID ${userId} not found during update.`);
         return res.status(404).json({ message: "User not found" });
       }
 
-      console.log(`Successfully updated user ${userId}.`);
+      devLog(`Successfully updated user ${userId}.`);
       // Remove password from response
       const userWithoutPassword = sanitizeUser(updatedUser);
       res.status(200).json(userWithoutPassword);
     } catch (error) {
-      console.error("Error updating user profile:", error);
+      devError("Error updating user profile:", error);
       res.status(500).json({ message: error instanceof Error ? error.message : "Error updating profile" });
     }
   });
@@ -325,7 +347,7 @@ export function setupAuth(app: Express) {
         user: userWithoutPassword 
       });
     } catch (error) {
-      console.error("Verification error:", error);
+      devError("Verification error:", error);
       res.status(500).json({ message: "Error verifying email" });
     }
   });
@@ -348,7 +370,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already verified" });
       }
       
-      console.log(`Resending verification code for user: ${user.email}`);
+      devLog(`Resending verification code for user: ${user.email}`);
       
       // Generate new verification code
       const verificationCode = generateVerificationCode();
@@ -357,7 +379,7 @@ export function setupAuth(app: Express) {
       const verificationExpiry = new Date();
       verificationExpiry.setMinutes(verificationExpiry.getMinutes() + 30);
       
-      console.log(`Generated new verification code: ${verificationCode} for ${user.email}`);
+      devLog(`Generated new verification code: ${verificationCode} for ${user.email}`);
       
       // Update user with new verification code
       await storage.updateUser(userId, {
@@ -366,20 +388,20 @@ export function setupAuth(app: Express) {
       });
       
       // Send verification email
-      console.log(`Attempting to send verification email to: ${user.email}`);
+      devLog(`Attempting to send verification email to: ${user.email}`);
       const emailSent = await sendVerificationEmail(user.email, verificationCode);
       
       if (!emailSent) {
-        console.error(`Failed to send verification email to ${user.email}`);
+        devError(`Failed to send verification email to ${user.email}`);
         return res.status(500).json({ 
           message: "Failed to send verification code. Please try again later or contact support." 
         });
       }
       
-      console.log(`Verification email sent successfully to ${user.email}`);
+      devLog(`Verification email sent successfully to ${user.email}`);
       res.status(200).json({ message: "Verification code sent to your email" });
     } catch (error) {
-      console.error("Resend verification error:", error);
+      devError("Resend verification error:", error);
       res.status(500).json({ message: "Error sending verification code" });
     }
   });
@@ -394,7 +416,7 @@ export function setupAuth(app: Express) {
       const orders = await storage.getOrdersByUserId(req.user.id);
       res.json(orders);
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      devError("Error fetching orders:", error);
       res.status(500).json({ message: "Error fetching orders" });
     }
   });
@@ -433,7 +455,7 @@ export function setupAuth(app: Express) {
       res.status(200).json({ message: "A password reset link has been sent to your email address." });
 
     } catch (error) {
-      console.error("Forgot password error:", error);
+      devError("Forgot password error:", error);
       // Generic error message for the client
       res.status(500).json({ message: "An internal error occurred while processing your request." });
     }
@@ -482,7 +504,7 @@ export function setupAuth(app: Express) {
       res.status(200).json({ message: "Password has been reset successfully." });
 
     } catch (error) {
-      console.error("Reset password error:", error);
+      devError("Reset password error:", error);
       res.status(500).json({ message: "An internal error occurred." });
     }
   });
@@ -515,7 +537,7 @@ export function setupAuth(app: Express) {
       await sendPasswordChangeConfirmationEmail(user.email);
       res.status(200).json({ message: "Password changed successfully." });
     } catch (error) {
-      console.error("Change password error:", error);
+      devError("Change password error:", error);
       res.status(500).json({ message: "An error occurred while changing password." });
     }
   });
@@ -530,7 +552,7 @@ export function setupAuth(app: Express) {
       req.logout(() => {}); // Log out the user after deleting
       res.status(200).json({ message: "Account deleted successfully." });
     } catch (error) {
-      console.error("Delete account error:", error);
+      devError("Delete account error:", error);
       res.status(500).json({ message: "An error occurred while deleting account." });
     }
   });
